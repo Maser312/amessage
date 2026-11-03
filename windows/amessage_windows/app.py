@@ -9,7 +9,8 @@ current_dir = os.path.dirname(os.path.abspath(__file__))
 windows_dir = os.path.abspath(os.path.join(current_dir, ".."))
 project_root = os.path.abspath(os.path.join(windows_dir, ".."))
 
-for path in [windows_dir, project_root]:
+core_dir = os.path.join(project_root, "core")
+for path in [windows_dir, project_root, core_dir]:
     if path not in sys.path:
         sys.path.insert(0, path)
 
