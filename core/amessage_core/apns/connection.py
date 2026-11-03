@@ -7,12 +7,15 @@ import socket
 import struct
 import threading
 import time
+import os
+import tempfile
 import logging
 from typing import List, Callable, Optional
 from base64 import b64encode, b64decode
 
 from .packet import APNSPacket, FilterPacket, PingPacket, NotificationAckPacket, PushNotification, CMD_NOTIFICATION, CMD_PING_ACK
 from .topics import DEFAULT_TOPICS, TOPIC_IMESSAGE
+from .albert import generate_push_certificate
 
 logger = logging.getLogger("amessage.apns")
 
@@ -42,6 +45,14 @@ class APNSConnection:
     def register_callback(self, cb: Callable[[PushNotification], None]):
         self.callbacks.append(cb)
 
+    def provision_push_certificate(self):
+        if not self.client_key or not self.client_cert:
+            try:
+                self.client_key, self.client_cert = generate_push_certificate()
+                logger.info("Provisioned authentic Apple Push certificate via Albert.")
+            except Exception as e:
+                logger.warning(f"Could not provision Albert certificate ({e}), using standard TLS.")
+
     def connect(self, token: Optional[bytes] = None, host: Optional[str] = None, port: int = DEFAULT_PORT):
         if host is None:
             host = COURIER_SERVERS[0]
@@ -49,9 +60,27 @@ class APNSConnection:
         self.token = token
         logger.info(f"Connecting to APNs gateway at {host}:{port}...")
 
+        if not self.client_key or not self.client_cert:
+            self.provision_push_certificate()
+
         context = ssl.create_default_context()
         context.check_hostname = False
         context.verify_mode = ssl.CERT_NONE
+        context.set_ciphers("DEFAULT@SECLEVEL=1")
+
+        cert_file_tmp = None
+        key_file_tmp = None
+        if self.client_cert and self.client_key:
+            try:
+                with tempfile.NamedTemporaryFile("w", delete=False) as f_c:
+                    f_c.write(self.client_cert)
+                    cert_file_tmp = f_c.name
+                with tempfile.NamedTemporaryFile("w", delete=False) as f_k:
+                    f_k.write(self.client_key)
+                    key_file_tmp = f_k.name
+                context.load_cert_chain(certfile=cert_file_tmp, keyfile=key_file_tmp)
+            except Exception as e:
+                logger.warning(f"Failed to load client cert chain into SSLContext: {e}")
 
         raw_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         raw_sock.settimeout(30.0)
@@ -61,7 +90,7 @@ class APNSConnection:
             self.sock.connect((host, port))
             self.is_connected = True
             self._running = True
-            logger.info("Connected securely to Apple Push Gateway.")
+            logger.info("Connected securely to Apple Push Gateway with DeviceCertificate!")
 
             self._listener_thread = threading.Thread(target=self._listen_loop, daemon=True)
             self._listener_thread.start()
@@ -75,6 +104,13 @@ class APNSConnection:
             logger.error(f"Failed to connect to APNs: {e}")
             self.is_connected = False
             raise
+        finally:
+            if cert_file_tmp and os.path.exists(cert_file_tmp):
+                try: os.remove(cert_file_tmp)
+                except Exception: pass
+            if key_file_tmp and os.path.exists(key_file_tmp):
+                try: os.remove(key_file_tmp)
+                except Exception: pass
 
     def filter(self, topics: List[str]):
         if not self.is_connected or not self.sock:

@@ -1,5 +1,6 @@
 """
 Anisette and Validation Data Client
+Connects to headless amessage-relay, live public Anisette v3 server, or falls back to local spoofing.
 """
 
 import logging
@@ -12,9 +13,11 @@ from .headers import AnisetteHeaders
 
 logger = logging.getLogger("amessage.anisette")
 
+DEFAULT_PUBLIC_ANISETTE = "https://ani.sidestore.io"
+
 class AnisetteClient:
     def __init__(self, relay_url: Optional[str] = None, relay_token: Optional[str] = None):
-        self.relay_url = relay_url
+        self.relay_url = relay_url or DEFAULT_PUBLIC_ANISETTE
         self.relay_token = relay_token
         self.profile: AppleHardwareProfile = generate_hardware_profile()
 
@@ -24,16 +27,23 @@ class AnisetteClient:
                 headers = {}
                 if self.relay_token:
                     headers["Authorization"] = f"Bearer {self.relay_token}"
-                resp = requests.get(f"{self.relay_url}/api/v1/anisette/headers", headers=headers, timeout=5)
+                url = self.relay_url
+                if "sidestore.io" in self.relay_url or self.relay_url.endswith("/"):
+                    pass
+                elif not self.relay_url.endswith("/headers"):
+                    url = f"{self.relay_url}/api/v1/anisette/headers"
+                resp = requests.get(url, headers=headers, timeout=5)
                 if resp.status_code == 200:
-                    return resp.json()
+                    data = resp.json()
+                    logger.info("Successfully fetched genuine Anisette FairPlay headers.")
+                    return data
             except Exception as e:
                 logger.warning(f"Failed to fetch headers from relay ({e}), falling back to local generator.")
 
         return AnisetteHeaders.build_headers(self.profile)
 
     def get_validation_data(self) -> bytes:
-        if self.relay_url:
+        if self.relay_url and not "sidestore.io" in self.relay_url:
             try:
                 headers = {"Content-Length": "0"}
                 if self.relay_token:
