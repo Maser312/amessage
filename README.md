@@ -1,14 +1,17 @@
 # AMessage 🍏💬
 
-**Native iMessage Client for Android — 100% Apple-Hardware-Free**
+**Native iMessage Client for Android & Windows — 100% Apple-Hardware-Free**
 
-AMessage is an open-source, reverse-engineered implementation of Apple's iMessage protocol designed to run natively on Android. It allows Android users to communicate directly with iPhone users using authentic blue bubbles, full end-to-end encryption (E2EE), read receipts, typing indicators, high-resolution media attachments, and tapback reactions — **without requiring the Android user to own or buy any Apple devices**.
+AMessage is an open-source, reverse-engineered implementation of Apple's iMessage protocol designed to run natively on Android and Windows. It allows non-Apple users to communicate directly with iPhone users using authentic blue bubbles, full end-to-end encryption (E2EE), read receipts, typing indicators, high-resolution media attachments, and tapback reactions — **without requiring the user to own or buy any Apple devices**.
 
 ---
 
 ## 🌟 Key Highlights
 
 - **No Apple Hardware Required**: Connects to iMessage without owning an iPhone, Mac, or iPad.
+- **Cross-Platform (Android & Windows)**:
+  - **Android Client**: Native Jetpack Compose app with background APNs push keepalive.
+  - **Windows Desktop & Debugger**: Full desktop app with protocol inspector for live debugging.
 - **Direct Apple Connection**: Connects straight to Apple's Push Notification service (`courier.push.apple.com`) and Identity Services (IDS) via TLS. Messages are end-to-end encrypted (E2EE) on your device using NIST P-256 ECDH and AES-GCM.
 - **Full iMessage Protocol Support**:
   - Blue bubbles with delivery & read receipts
@@ -27,11 +30,11 @@ AMessage is an open-source, reverse-engineered implementation of Apple's iMessag
 
 ```
 +-------------------------------------------------------------------+
-|                         Android Device                            |
+|                   Client Device (Android or Windows)              |
 |                                                                   |
 |  +--------------------+         +------------------------------+  |
-|  | Jetpack Compose UI | <-----> |   AMessage Protocol Core     |  |
-|  |  (iMessage Style)  |         | (APNs, IDS, E2EE, MMCS Sync) |  |
+|  | Modern Desktop UI  | <-----> |   AMessage Protocol Core     |  |
+|  | (Compose / WinUI)  |         | (APNs, IDS, E2EE, MMCS Sync) |  |
 |  +--------------------+         +------------------------------+  |
 |                                     |                     ^       |
 +-------------------------------------|---------------------|-------+
@@ -61,23 +64,28 @@ For the technical guide on bypassing Apple hardware restrictions, see [HACKS_AND
 
 ## 🚀 Getting Started
 
-### Option 1: Quick CLI Test (Core Protocol)
+### Option 1: Running on Windows (Fast Protocol Debugger & Desktop App)
+
+Launch the desktop client with live packet inspector:
+```powershell
+cd windows
+pip install -r requirements.txt
+python -m amessage_windows.app
+```
+Or simply double-click `windows/run.bat`.
+
+### Option 2: Quick CLI Test (Core Protocol)
 
 Run the Python protocol core directly on your computer or Android (via Termux):
 
 ```bash
-# Clone the repository
 git clone https://github.com/Maser312/amessage.git
 cd amessage/core
-
-# Install dependencies
 pip install -r requirements.txt
-
-# Run the interactive CLI client
 python -m amessage_core.cli
 ```
 
-### Option 2: Deploying the Headless Relay (Docker)
+### Option 3: Deploying the Headless Relay (Docker)
 
 If you don't own an Apple device, launch the self-hosted relay on any Linux server, Windows PC (WSL2), or Docker host:
 
@@ -86,25 +94,18 @@ cd relay
 docker compose up -d
 ```
 
-The relay generates authentic SMBIOS identifiers (Board-ID, MLB, ROM, Hardware Serial) and signs initial registration tokens required by Apple's Identity Services (IDS).
-
-### Option 3: Building the Android App
+### Option 4: Building the Android App
 
 ```bash
 cd client
 ./gradlew assembleDebug
 ```
 
-Install the APK onto your Android phone:
-```bash
-adb install -r app/build/outputs/apk/debug/app-debug.apk
-```
-
 ---
 
 ## 🔐 Security & Privacy
 
-1. **End-to-End Encryption**: All messages, attachments, and metadata are encrypted on your local Android device using Apple's native cryptographic algorithms (P-256 ECDH + AES-128-GCM). Only the intended recipient can decrypt your messages.
+1. **End-to-End Encryption**: All messages, attachments, and metadata are encrypted on your local device using Apple's native cryptographic algorithms (P-256 ECDH + AES-128-GCM). Only the intended recipient can decrypt your messages.
 2. **Zero-Knowledge Relay**: The validation relay is used **strictly during initial authentication** to generate Anisette and Validation Data tokens (`X-Apple-I-MD`, `X-Apple-ActionSignature`). The relay **never** receives your private keys, Apple ID password, or message contents.
 3. **No Centralized Intermediary**: Unlike web-relayed solutions that forward chat logs through a third-party server, AMessage maintains a direct TLS socket connection to Apple's push infrastructure.
 
@@ -114,6 +115,7 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 
 - [iMessage Protocol Architecture](ARCHITECTURE.md)
 - [Hardware Spoofing & Bypass Deep Dive](HACKS_AND_BYPASSES.md)
+- [Windows Client & Debugger Guide](windows/README.md)
 - [Android Client Guide](client/README.md)
 - [Core Engine Guide](core/README.md)
 - [Relay Server Setup](relay/README.md)
