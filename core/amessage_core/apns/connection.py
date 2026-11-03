@@ -51,11 +51,12 @@ class APNSConnection:
                 self.client_key, self.client_cert = generate_push_certificate()
                 logger.info("Provisioned authentic Apple Push certificate via Albert.")
             except Exception as e:
-                logger.warning(f"Could not provision Albert certificate ({e}), using standard TLS.")
+                logger.error(f"Could not provision Albert certificate: {e}")
+                raise
 
     def connect(self, token: Optional[bytes] = None, host: Optional[str] = None, port: int = DEFAULT_PORT):
         if host is None:
-            host = COURIER_SERVERS[0]
+            host = COURIER_SERVERS[1]  # 1-courier.push.apple.com
         
         self.token = token
         logger.info(f"Connecting to APNs gateway at {host}:{port}...")
@@ -63,31 +64,34 @@ class APNSConnection:
         if not self.client_key or not self.client_cert:
             self.provision_push_certificate()
 
+        if not self.client_key or not self.client_cert:
+            raise RuntimeError("Cannot connect to APNs: Authentic Apple Device Certificate is required.")
+
         context = ssl.create_default_context()
         context.check_hostname = False
         context.verify_mode = ssl.CERT_NONE
-        context.set_ciphers("DEFAULT@SECLEVEL=1")
+        try:
+            context.set_ciphers("DEFAULT@SECLEVEL=1")
+        except Exception:
+            pass
 
         cert_file_tmp = None
         key_file_tmp = None
-        if self.client_cert and self.client_key:
-            try:
-                with tempfile.NamedTemporaryFile("w", delete=False) as f_c:
-                    f_c.write(self.client_cert)
-                    cert_file_tmp = f_c.name
-                with tempfile.NamedTemporaryFile("w", delete=False) as f_k:
-                    f_k.write(self.client_key)
-                    key_file_tmp = f_k.name
-                context.load_cert_chain(certfile=cert_file_tmp, keyfile=key_file_tmp)
-            except Exception as e:
-                logger.warning(f"Failed to load client cert chain into SSLContext: {e}")
-
-        raw_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        raw_sock.settimeout(30.0)
+        try:
+            with tempfile.NamedTemporaryFile("w", delete=False) as f_c:
+                f_c.write(self.client_cert)
+                cert_file_tmp = f_c.name
+            with tempfile.NamedTemporaryFile("w", delete=False) as f_k:
+                f_k.write(self.client_key)
+                key_file_tmp = f_k.name
+            context.load_cert_chain(certfile=cert_file_tmp, keyfile=key_file_tmp)
+        except Exception as e:
+            logger.error(f"Failed to load client cert chain into SSLContext: {e}")
+            raise
 
         try:
-            self.sock = context.wrap_socket(raw_sock, server_hostname=host)
-            self.sock.connect((host, port))
+            raw_sock = socket.create_connection((host, port), timeout=30.0)
+            self.sock = context.wrap_socket(raw_sock, server_hostname="courier.push.apple.com")
             self.is_connected = True
             self._running = True
             logger.info("Connected securely to Apple Push Gateway with DeviceCertificate!")
