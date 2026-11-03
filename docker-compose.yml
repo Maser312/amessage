@@ -1,0 +1,13 @@
+version: '3.8'
+
+services:
+  amessage-relay:
+    build:
+      context: ./relay
+      dockerfile: Dockerfile
+    container_name: amessage-relay
+    ports:
+      - "8080:8080"
+    restart: unless-stopped
+    environment:
+      - PORT=8080
